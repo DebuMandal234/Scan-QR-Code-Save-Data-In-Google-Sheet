@@ -157,23 +157,50 @@ function onScanSuccess(decodedText) {
 }
 
 // Stop Scanner
-function stopScanner() {
-  if (html5QrCode) {
-    html5QrCode.stop().then(() => {
+async function stopScanner() {
+  try {
+    if (html5QrCode) {
+      await html5QrCode.stop();
+      await html5QrCode.clear();
       document.getElementById("status").innerText = "Stopped";
-    });
+    }
+  } catch (err) {
+    console.error(err);
   }
 }
 
-// Switch Camera
+
+  
 async function switchCamera() {
   if (!cameras.length) return;
 
-  currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+  document.getElementById("status").innerText = "Switching camera...";
 
-  stopScanner();
+  try {
+    if (html5QrCode) {
+      await html5QrCode.stop();   // ✅ wait properly
+      await html5QrCode.clear();  // ✅ fully release camera
+    }
 
-  setTimeout(startScanner, 500);
+    // change camera index
+    currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+    cameraId = cameras[currentCameraIndex].id;
+
+    // restart with new camera
+    html5QrCode = new Html5Qrcode("reader");
+
+    await html5QrCode.start(
+      cameraId,
+      { fps: 10, qrbox: 250 },
+      onScanSuccess
+    );
+
+    document.getElementById("status").innerText = "Camera switched ✅";
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "Camera switch failed ❌";
+  }
 }
 
 // Add to history UI
