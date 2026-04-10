@@ -2,16 +2,20 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QR Scanner</title>
+  <title>QR Scanner Pro</title>
 
-  <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
     body {
       font-family: Arial;
       text-align: center;
-      padding: 20px;
+      padding: 15px;
+      background: #f5f5f5;
+    }
+
+    h2 {
+      margin-bottom: 10px;
     }
 
     #reader {
@@ -19,80 +23,123 @@
       margin: auto;
     }
 
-    #status {
-      margin-top: 10px;
-      color: blue;
-    }
-
-    #result {
-      margin-top: 15px;
-      font-size: 18px;
-      color: green;
-    }
-
     button {
       padding: 10px;
       margin: 5px;
-      font-size: 16px;
+      font-size: 14px;
+      border: none;
+      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    #history {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 350px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .item {
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
     }
   </style>
 </head>
 
 <body>
 
-<h2>QR Code Scanner</h2>
+<h2>QR Scanner Pro</h2>
 
 <div id="reader"></div>
 
-<button onclick="startScanner()">Start Scan</button>
-<button onclick="stopScanner()">Stop</button>
+<div>
+  <button onclick="startScanner()">Start</button>
+  <button onclick="stopScanner()">Stop</button>
+  <button onclick="switchCamera()">Switch Camera</button>
+</div>
 
 <div id="status">Ready</div>
-<div id="result"></div>
+
+<div id="history">
+  <strong>Scan History:</strong>
+  <div id="list"></div>
+</div>
+
+<!-- Beep Sound -->
+<audio id="beep" src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3"></audio>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbynjGl0M3EyYO4E1uJebiY3RipZb4Pz2B40beM8RIo1vnTc6aX7x1PkAuzXED1cBwFU/exec";
 
 let html5QrCode;
-let isScanning = false;
+let cameraId = null;
+let cameras = [];
+let currentCameraIndex = 0;
+let scannedSet = new Set(); // prevent duplicates
 
 // Start Scanner
-function startScanner() {
-  if (isScanning) return;
+async function startScanner() {
+  document.getElementById("status").innerText = "Starting camera...";
 
-  html5QrCode = new Html5Qrcode("reader");
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
 
-  document.getElementById("status").innerText = "Requesting camera...";
+    cameras = await Html5Qrcode.getCameras();
 
-  navigator.mediaDevices.getUserMedia({ video: true })
-    .then(() => {
-      document.getElementById("status").innerText = "Camera ready ✅";
+    if (cameras.length === 0) {
+      document.getElementById("status").innerText = "No camera found ❌";
+      return;
+    }
 
-      Html5Qrcode.getCameras().then(devices => {
-        if (devices.length) {
-          isScanning = true;
+    cameraId = cameras[currentCameraIndex].id;
 
-          html5QrCode.start(
-            devices[0].id,
-            { fps: 10, qrbox: 250 },
-            onScanSuccess
-          );
-        } else {
-          document.getElementById("status").innerText = "No camera found ❌";
-        }
-      });
-    })
-    .catch(err => {
-      console.error(err);
-      document.getElementById("status").innerText = "Camera permission denied ❌";
-    });
+    html5QrCode = new Html5Qrcode("reader");
+
+    await html5QrCode.start(
+      cameraId,
+      { fps: 10, qrbox: 250 },
+      onScanSuccess
+    );
+
+    document.getElementById("status").innerText = "Scanning...";
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "Camera error ❌";
+  }
 }
 
-// When QR is scanned
+// On Scan
 function onScanSuccess(decodedText) {
-  document.getElementById("result").innerText = "Scanned: " + decodedText;
+
+  if (scannedSet.has(decodedText)) return; // prevent duplicate
+
+  scannedSet.add(decodedText);
+
+  document.getElementById("beep").play();
 
   document.getElementById("status").innerText = "Saving...";
+
+  addToHistory(decodedText);
 
   // Send to Apps Script
   fetch(API_URL, {
@@ -102,29 +149,40 @@ function onScanSuccess(decodedText) {
     headers: {
       "Content-Type": "application/json"
     }
-  })
-  .then(() => {
-    // Simulate success (no-cors doesn't allow reading response)
-    setTimeout(() => {
-      document.getElementById("status").innerText = "Saved to Google Sheet ✅";
-    }, 500);
-  })
-  .catch(err => {
-    console.error(err);
-    document.getElementById("status").innerText = "Error saving data ❌";
   });
 
-  stopScanner(); // auto stop after scan
+  setTimeout(() => {
+    document.getElementById("status").innerText = "Saved ✅";
+  }, 500);
 }
 
 // Stop Scanner
 function stopScanner() {
-  if (html5QrCode && isScanning) {
+  if (html5QrCode) {
     html5QrCode.stop().then(() => {
-      isScanning = false;
-      document.getElementById("status").innerText = "Scanner stopped";
-    }).catch(err => console.error(err));
+      document.getElementById("status").innerText = "Stopped";
+    });
   }
+}
+
+// Switch Camera
+async function switchCamera() {
+  if (!cameras.length) return;
+
+  currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+
+  stopScanner();
+
+  setTimeout(startScanner, 500);
+}
+
+// Add to history UI
+function addToHistory(data) {
+  const div = document.createElement("div");
+  div.className = "item";
+  div.innerText = new Date().toLocaleTimeString() + " - " + data;
+
+  document.getElementById("list").prepend(div);
 }
 </script>
 
