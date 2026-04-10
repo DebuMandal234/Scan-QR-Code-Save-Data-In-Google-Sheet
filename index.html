@@ -23,33 +23,29 @@
       margin: auto;
     }
 
-    button {
+    select, button {
       padding: 10px;
       margin: 5px;
       font-size: 14px;
-      border: none;
       border-radius: 6px;
-      background: #007bff;
-      color: white;
-      cursor: pointer;
     }
 
-    button:hover {
-      background: #0056b3;
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
     }
 
     #status {
       margin-top: 10px;
       font-weight: bold;
-      color: #333;
     }
 
     #history {
       margin-top: 20px;
       text-align: left;
       max-width: 350px;
-      margin-left: auto;
-      margin-right: auto;
+      margin: auto;
       background: white;
       padding: 10px;
       border-radius: 8px;
@@ -71,13 +67,15 @@
 
 <div id="reader"></div>
 
+<!-- Camera Selector -->
+<select id="cameraSelect"></select>
+
 <div>
   <button onclick="startScanner()">Start</button>
   <button onclick="stopScanner()">Stop</button>
-  <button onclick="switchCamera()">Switch Camera</button>
 </div>
 
-<div id="status">Ready</div>
+<div id="status">Loading cameras...</div>
 
 <div id="history">
   <strong>Scan History:</strong>
@@ -91,26 +89,49 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbynjGl0M3EyYO4E1uJebiY3RipZb4Pz2B40beM8RIo1vnTc6aX7x1PkAuzXED1cBwFU/exec";
 
 let html5QrCode;
-let cameraId = null;
 let cameras = [];
-let currentCameraIndex = 0;
-let scannedSet = new Set(); // prevent duplicates
+let scannedSet = new Set();
 
-// Start Scanner
-async function startScanner() {
-  document.getElementById("status").innerText = "Starting camera...";
-
+// Load Cameras
+async function loadCameras() {
   try {
     await navigator.mediaDevices.getUserMedia({ video: true });
 
     cameras = await Html5Qrcode.getCameras();
 
-    if (cameras.length === 0) {
-      document.getElementById("status").innerText = "No camera found ❌";
-      return;
+    const select = document.getElementById("cameraSelect");
+    select.innerHTML = "";
+
+    cameras.forEach((cam, index) => {
+      const option = document.createElement("option");
+      option.value = cam.id;
+      option.text = cam.label || "Camera " + (index + 1);
+      select.appendChild(option);
+    });
+
+    // Auto-select back camera if found
+    const backCam = cameras.find(cam => cam.label.toLowerCase().includes("back"));
+    if (backCam) {
+      select.value = backCam.id;
     }
 
-    cameraId = cameras[currentCameraIndex].id;
+    document.getElementById("status").innerText = "Select camera and start";
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "Camera permission denied ❌";
+  }
+}
+
+// Start Scanner
+async function startScanner() {
+  try {
+    const cameraId = document.getElementById("cameraSelect").value;
+
+    if (!cameraId) {
+      alert("Please select a camera");
+      return;
+    }
 
     html5QrCode = new Html5Qrcode("reader");
 
@@ -124,14 +145,14 @@ async function startScanner() {
 
   } catch (err) {
     console.error(err);
-    document.getElementById("status").innerText = "Camera error ❌";
+    document.getElementById("status").innerText = "Start failed ❌";
   }
 }
 
 // On Scan
 function onScanSuccess(decodedText) {
 
-  if (scannedSet.has(decodedText)) return; // prevent duplicate
+  if (scannedSet.has(decodedText)) return;
 
   scannedSet.add(decodedText);
 
@@ -141,7 +162,6 @@ function onScanSuccess(decodedText) {
 
   addToHistory(decodedText);
 
-  // Send to Apps Script
   fetch(API_URL, {
     method: "POST",
     mode: "no-cors",
@@ -169,41 +189,7 @@ async function stopScanner() {
   }
 }
 
-
-  
-async function switchCamera() {
-  if (!cameras.length) return;
-
-  document.getElementById("status").innerText = "Switching camera...";
-
-  try {
-    if (html5QrCode) {
-      await html5QrCode.stop();   // ✅ wait properly
-      await html5QrCode.clear();  // ✅ fully release camera
-    }
-
-    // change camera index
-    currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
-    cameraId = cameras[currentCameraIndex].id;
-
-    // restart with new camera
-    html5QrCode = new Html5Qrcode("reader");
-
-    await html5QrCode.start(
-      cameraId,
-      { fps: 10, qrbox: 250 },
-      onScanSuccess
-    );
-
-    document.getElementById("status").innerText = "Camera switched ✅";
-
-  } catch (err) {
-    console.error(err);
-    document.getElementById("status").innerText = "Camera switch failed ❌";
-  }
-}
-
-// Add to history UI
+// Add to History
 function addToHistory(data) {
   const div = document.createElement("div");
   div.className = "item";
@@ -211,6 +197,9 @@ function addToHistory(data) {
 
   document.getElementById("list").prepend(div);
 }
+
+// Load cameras on start
+loadCameras();
 </script>
 
 </body>
