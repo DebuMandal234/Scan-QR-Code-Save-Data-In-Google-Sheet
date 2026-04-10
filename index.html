@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #reader {
+      width: 300px;
+      margin: auto;
+    }
+
+    #status {
+      margin-top: 10px;
+      color: blue;
+    }
+
+    #result {
+      margin-top: 15px;
+      font-size: 18px;
+      color: green;
+    }
+
+    button {
+      padding: 10px;
+      margin: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>QR Code Scanner</h2>
+
+<div id="reader"></div>
+
+<button onclick="startScanner()">Start Scan</button>
+<button onclick="stopScanner()">Stop</button>
+
+<div id="status"></div>
+<div id="result"></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwwuBs1X8WxKQpBiHJoLC9uYWcD0-vXM3nx134qRAUFBx6DDeFARP_1qIsOZoQJXKA/exec";
+
+let html5QrCode;
+
+function startScanner() {
+  html5QrCode = new Html5Qrcode("reader");
+
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(() => {
+      document.getElementById("status").innerText = "Camera ready ✅";
+
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices.length) {
+          html5QrCode.start(
+            devices[0].id,
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+          );
+        }
+      });
+    })
+    .catch(err => {
+      document.getElementById("status").innerText = "Camera permission denied ❌";
+    });
+}
+
+function onScanSuccess(decodedText) {
+  document.getElementById("result").innerText = "Scanned: " + decodedText;
+
+  // Send to Google Apps Script
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ qrData: decodedText }),
+    headers: {
+      "Content-Type": "application/json"
+    }
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log(data);
+    document.getElementById("status").innerText = "Saved to Google Sheet ✅";
+  })
+  .catch(err => {
+    console.error(err);
+    document.getElementById("status").innerText = "Error saving data ❌";
+  });
+
+  stopScanner(); // optional
+}
+
+function stopScanner() {
+  if (html5QrCode) {
+    html5QrCode.stop();
+  }
+}
+</script>
+
+</body>
+</html>
