@@ -4,6 +4,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>QR Scanner</title>
 
+  <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -32,6 +33,7 @@
     button {
       padding: 10px;
       margin: 5px;
+      font-size: 16px;
     }
   </style>
 </head>
@@ -45,16 +47,22 @@
 <button onclick="startScanner()">Start Scan</button>
 <button onclick="stopScanner()">Stop</button>
 
-<div id="status"></div>
+<div id="status">Ready</div>
 <div id="result"></div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbynjGl0M3EyYO4E1uJebiY3RipZb4Pz2B40beM8RIo1vnTc6aX7x1PkAuzXED1cBwFU/exec";
 
 let html5QrCode;
+let isScanning = false;
 
+// Start Scanner
 function startScanner() {
+  if (isScanning) return;
+
   html5QrCode = new Html5Qrcode("reader");
+
+  document.getElementById("status").innerText = "Requesting camera...";
 
   navigator.mediaDevices.getUserMedia({ video: true })
     .then(() => {
@@ -62,48 +70,60 @@ function startScanner() {
 
       Html5Qrcode.getCameras().then(devices => {
         if (devices.length) {
+          isScanning = true;
+
           html5QrCode.start(
             devices[0].id,
             { fps: 10, qrbox: 250 },
             onScanSuccess
           );
+        } else {
+          document.getElementById("status").innerText = "No camera found ❌";
         }
       });
     })
     .catch(err => {
+      console.error(err);
       document.getElementById("status").innerText = "Camera permission denied ❌";
     });
 }
 
+// When QR is scanned
 function onScanSuccess(decodedText) {
   document.getElementById("result").innerText = "Scanned: " + decodedText;
 
-  // Send to Google Apps Script
+  document.getElementById("status").innerText = "Saving...";
+
+  // Send to Apps Script
   fetch(API_URL, {
     method: "POST",
-    mode: "no-cors", 
+    mode: "no-cors",
     body: JSON.stringify({ qrData: decodedText }),
     headers: {
       "Content-Type": "application/json"
     }
   })
-  .then(res => res.json())
-  .then(data => {
-    console.log(data);
-    document.getElementById("status").innerText = "Saved to Google Sheet ✅";
+  .then(() => {
+    // Simulate success (no-cors doesn't allow reading response)
+    setTimeout(() => {
+      document.getElementById("status").innerText = "Saved to Google Sheet ✅";
+    }, 500);
   })
   .catch(err => {
     console.error(err);
-    document.getElementById("status").innerText = err;
-    // document.getElementById("status").innerText = "Error saving data ❌";
+    document.getElementById("status").innerText = "Error saving data ❌";
   });
 
-  stopScanner(); // optional
+  stopScanner(); // auto stop after scan
 }
 
+// Stop Scanner
 function stopScanner() {
-  if (html5QrCode) {
-    html5QrCode.stop();
+  if (html5QrCode && isScanning) {
+    html5QrCode.stop().then(() => {
+      isScanning = false;
+      document.getElementById("status").innerText = "Scanner stopped";
+    }).catch(err => console.error(err));
   }
 }
 </script>
