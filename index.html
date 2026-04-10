@@ -93,7 +93,8 @@ function onScanSuccess(decodedText) {
   })
   .catch(err => {
     console.error(err);
-    document.getElementById("status").innerText = "Error saving data ❌";
+    document.getElementById("status").innerText = err;
+    // document.getElementById("status").innerText = "Error saving data ❌";
   });
 
   stopScanner(); // optional
