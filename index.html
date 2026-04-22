@@ -87,7 +87,7 @@
 <audio id="beep" src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3" preload="auto"></audio>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbynjGl0M3EyYO4E1uJebiY3RipZb4Pz2B40beM8RIo1vnTc6aX7x1PkAuzXED1cBwFU/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyg6rm3FWxfyhqIMQKs0doR9GBtSTSjtvsoM_4oUuwIWweF5VCusb7Fot6gbnk59UZ6/exec";
 
 let html5QrCode;
 let cameras = [];
@@ -189,7 +189,7 @@ function onScanSuccess(decodedText) {
   });
 
   // ⏳ Countdown
-  let count = 5;
+  let count = 10;
   document.getElementById("status").innerText = `Next scan in ${count}...`;
 
   cooldownTimer = setInterval(() => {
